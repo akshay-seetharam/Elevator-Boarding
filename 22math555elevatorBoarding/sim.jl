@@ -3,6 +3,8 @@ using ResumableFunctions
 using SimJulia
 using ProgressMeter
 
+using Observables
+
 using Random
 
 const RUNS = 500
@@ -57,15 +59,23 @@ function sim_repair()
     stop_time
 end
 
-results = Float64[]
-@showprogress for i in 1:RUNS push!(results, sim_repair()) end
+# plotting
+results = Observable(Vector([0.0]))
+
+using GLMakie
+f = Figure(); display(f)  # run this script with julia -i to launch interactive and keep the window around
+ax = Axis(f[1, 1], title="Histogram of Arrive Time per Worker by strategy")
+limits!(ax, -1, 10_000, 0, RUNS)
+hist!(ax, results, bins=20)
+
+println("starting sim...")
+
+@showprogress for i in 1:RUNS
+    push!(results[], sim_repair())
+    results[] = results[]
+    # push_output(arr) = push!(arr, sim_repair())
+    # lift(push_output, results)
+end
 println("Average crash time: ", sum(results)/RUNS)
 
-
-# plotting
-using GLMakie
-f = Figure()
-ax = Axis(f[1, 1], title="Histogram of Arrive Time per Worker by strategy")
-hist!(ax, results, bins=20)
-display(f)  # run this script with julia -i to launch interactive and keep the window around
 
