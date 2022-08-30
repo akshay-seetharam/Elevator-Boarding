@@ -10,15 +10,15 @@ ELEVATOR_GROUNDFLOOR_TIME = 15
 ELEVATOR_TRAVEL_TIME = 5
 ELEVATOR_UNLOAD_TIME = 10
 
+iterlen(iterable) = foldl((a, c) -> a+1, iterable; init=0)
+
 tripDuration(floors::Set) =
     ELEVATOR_GROUNDFLOOR_TIME +
-    ELEVATOR_TRAVEL_TIME*2*maximum(floors) +
-    ELEVATOR_UNLOAD_TIME*foldl((a, c) -> a+1, distinct(floors); init=0)
+    ELEVATOR_TRAVEL_TIME*2*maximum(floors) +        # travel time per floor *2 bc up + down
+    ELEVATOR_UNLOAD_TIME*iterlen(distinct(floors))  # unload once per distinct floor of ppl in the elevator
 
-
-function simulateClusters(queues_by_lift::Array{Vector{Set{Int}}, N_ELEVATORS})
-    maximum(map(q -> sum(s -> tripDuration(), q), queues_by_lift))
-end
+simulateClusters(queues_by_lift::Array{Vector{Set{Int}}, N_ELEVATORS}) =
+    maximum(map(q -> sum(s -> tripDuration(), q), queues_by_lift))  # total time = max of sum of trip durations for each set of clusters sent to an elevator. this assumes no breaks
 
 clusters = [repeat([Set([f])], ceil(Int64, n/ELEVATOR_CAPACITY)) for (f, n) in enumerate(WORKERS_BY_FLOOR)]; clusters = reduce(vcat, clusters)
 
