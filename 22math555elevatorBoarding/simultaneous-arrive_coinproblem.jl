@@ -26,7 +26,9 @@ clusters = [repeat([Set([f])], ceil(Int64, n/ELEVATOR_CAPACITY)) for (f, n) in e
 trip_durations = sort(map(tripDuration, clusters), rev=true)
 tot_durations = zeros(N_ELEVATORS)
 for duration in trip_durations
+    argmn = argmin(tot_durations)
     tot_durations[argmin(tot_durations)] += duration
+    println("added ", duration, " to ", argmn, ", now the times are ", tot_durations)
 end
 @show tot_durations
 @show maximum(tot_durations), maximum(tot_durations)/60
