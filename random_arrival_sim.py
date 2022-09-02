@@ -13,6 +13,8 @@ from queue import PriorityQueue
 from operator import attrgetter as ag, itemgetter as ig
 from functools import reduce
 
+N_SIM = int(1e3)
+
 N_ELEVATORS = 4
 N_FLOORS = 6
 WORKERS_BY_FLOOR = [100, 120, 60, 120, 80, 20]
@@ -91,16 +93,13 @@ def simulate(strategy, arrival_times_by_floor: List[NDArray[np.float32]], init_t
 
     # main sim loop
     event_pq = PriorityQueue()     # initialize with enough capacity for every worker's arrival event
-    for f, times in enumerate(tqdm(arrival_times_by_floor, desc='inserting init ppl')):             # insert all the arrival events into the pq
+    for f, times in enumerate(arrival_times_by_floor):             # insert all the arrival events into the pq
         for t in times:
             event_pq.put(ElevatorSimEvents(t, Whappened.WORKER_ARRIVED, f))
-    for i in trange(N_ELEVATORS, desc='inserting init elevators'):
-        print(event_pq.qsize())
+    for i in range(N_ELEVATORS):
         event_pq.put_nowait(ElevatorSimEvents(0, Whappened.ELEVATOR_ARRIVED, i))
 
-    print("go time!")
-
-    for _ in trange(max_steps):
+    for _ in range(max_steps):
         if event_pq.empty(): break
         cur_time, whappened, data = ag('time', 'whappened', 'data')(event_pq.get())
 
@@ -132,7 +131,6 @@ def simulate(strategy, arrival_times_by_floor: List[NDArray[np.float32]], init_t
             # for to_send = [floor, floor, floor, ...]
             if len(to_send) > ELEVATOR_CAPACITY:
                 print(f"{cur_time:6.2f} WARNING: tried to send {'+'.join(count for _, count in to_send)} = {sum(count for _, count in to_send)} people but elevator cap is {ELEVATOR_CAPACITY}")
-            pprint(to_send)
             for floor in to_send:
                 if n_waiting_by_floor[floor] < 1:
                     print(f"{cur_time:6.2f} WARNING: tried to send group of size 1 to floor {floor} but only {n_waiting_by_floor[floor]} are here")
@@ -147,7 +145,7 @@ def simulate(strategy, arrival_times_by_floor: List[NDArray[np.float32]], init_t
             #         break
             else: # we should be good to at least send someone, since the elevator is valid and the clusters are valid
                 to_send_bucketed = list({ f: sum(1 for tf in to_send if tf == f) for f in set(to_send) }.items())
-                print(f"                          {to_send} -> {to_send_bucketed}")
+                # print(f"                          {to_send} -> {to_send_bucketed}")
                 to_send = to_send_bucketed
 
 
@@ -159,7 +157,6 @@ def simulate(strategy, arrival_times_by_floor: List[NDArray[np.float32]], init_t
                 for f, n in sorted(to_send, key=lambda scl: scl[0]):
                     trip_time += ELEVATOR_TRAVEL_TIME * f - prev_floor + ELEVATOR_UNLOAD_TIME   # DECISION: maybe trip time shouldn't count the unload time as ppl are getting out
                     prev_floor = f
-                    print(f, n)
                     final_times_by_floor[f] += [trip_time]*n
 
                 # state update
@@ -178,20 +175,32 @@ def arrival_instantaneous():
 
 
 if __name__ == '__main__':
-    arrival_times_by_floor = arrival_instantaneous()
-    print(arrival_times_by_floor)
-    cringe_strategy = strat_3a1_nochange(arrival_times_by_floor)
-    tot_time, idle_time_by_elevator, arrival_times_by_floor, trip_distinct_floors_by_elevator = simulate(cringe_strategy.step, arrival_times_by_floor, init_time=0)
-    print(tot_time)
+    trips_distinct_floors = []
+    tot_arrival_times_by_floor = []
+    tot_times = []
+    for i in trange(N_SIM):
+        arrival_times_by_floor = arrival_instantaneous()
+        cringe_strategy = strat_3a1_nochange(arrival_times_by_floor)
+        tot_time, idle_time_by_elevator, arrival_times_by_floor, trip_distinct_floors_by_elevator = simulate(cringe_strategy.step, arrival_times_by_floor, init_time=0)
+        tot_times.append(tot_time)
+        for tot, cur in zip(tot_arrival_times_by_floor, arrival_times_by_floor):
+            tot += cur
+        trips_distinct_floors += trip_distinct_floors_by_elevator
 
     fig, ax = plt.subplots()
-    pprint(trip_distinct_floors_by_elevator)
-    ax.hist(reduce(lambda a, c: a + c, trip_distinct_floors_by_elevator))
+    ax.hist(reduce(lambda a, c: a + c, trips_distinct_floors))
     ax.set_xlabel('number of distinct floors per trip')
     ax.set_ylabel('number of trips')
     ax.set_title('histogram of floors visited per trip')
     plt.show()
 
+
+    fig, ax = plt.subplots()
+    ax.hist(tot_times)
+    ax.set_title('total time for all workers to reach their floors')
+    ax.set_ylabel('number of sims')
+    ax.set_xlabel('time for final elevator to reach bottom')
+    plt.show()
 
 
 # from matplotlib import pyplot as plt
