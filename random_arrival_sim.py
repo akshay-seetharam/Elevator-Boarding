@@ -13,7 +13,7 @@ from queue import PriorityQueue
 from operator import attrgetter as ag, itemgetter as ig
 from functools import reduce
 
-N_SIM = int(1e3)
+N_SIM = int(1e5)
 
 N_ELEVATORS = 4
 N_FLOORS = 6
@@ -102,6 +102,7 @@ def simulate(strategy, arrival_times_by_floor: List[NDArray[np.float32]], init_t
     for _ in range(max_steps):
         if event_pq.empty(): break
         cur_time, whappened, data = ag('time', 'whappened', 'data')(event_pq.get())
+        # print('got event!', cur_time, whappened, data)
 
         match whappened:
             case Whappened.WORKER_ARRIVED:
@@ -121,6 +122,7 @@ def simulate(strategy, arrival_times_by_floor: List[NDArray[np.float32]], init_t
         )
 
         send_to_elvs = strategy(elevator_moment)
+        # print('-> sending', send_to_elvs)
 
         assert len(send_to_elvs) == N_ELEVATORS
         for elv, to_send in enumerate(send_to_elvs):
@@ -153,10 +155,11 @@ def simulate(strategy, arrival_times_by_floor: List[NDArray[np.float32]], init_t
                 # stats update
                 idle_time_by_elevator[elv] += cur_time - ready_time_by_elv[elv]
                 trip_distinct_floors_by_elevator[elv].append(len(to_send))
-                trip_time, prev_floor = ELEVATOR_GROUNDFLOOR_TIME, 0
+                trip_time, prev_floor = cur_time + ELEVATOR_GROUNDFLOOR_TIME, -1
                 for f, n in sorted(to_send, key=lambda scl: scl[0]):
-                    trip_time += ELEVATOR_TRAVEL_TIME * f - prev_floor + ELEVATOR_UNLOAD_TIME   # DECISION: maybe trip time shouldn't count the unload time as ppl are getting out
+                    trip_time += ELEVATOR_TRAVEL_TIME * (f - prev_floor) + ELEVATOR_UNLOAD_TIME   # DECISION: maybe trip time shouldn't count the unload time as ppl are getting out
                     prev_floor = f
+                    # print(f"    adding {n} times of {trip_time} to floor {f}")
                     final_times_by_floor[f] += [trip_time]*n
 
                 # state update
@@ -178,6 +181,8 @@ if __name__ == '__main__':
     trips_distinct_floors = []
     tot_arrival_times_by_floor = []
     tot_times = []
+    one_hundred_tenth_from_last = []
+
     for i in trange(N_SIM):
         arrival_times_by_floor = arrival_instantaneous()
         cringe_strategy = strat_3a1_nochange(arrival_times_by_floor)
@@ -186,22 +191,31 @@ if __name__ == '__main__':
         for tot, cur in zip(tot_arrival_times_by_floor, arrival_times_by_floor):
             tot += cur
         trips_distinct_floors += trip_distinct_floors_by_elevator
+        flat_arrival_times = list(reduce(lambda a, c: a + c, arrival_times_by_floor))
+        flat_arrival_times = sorted(flat_arrival_times)
+        one_hundred_tenth_from_last.append(flat_arrival_times[-110])
 
-    fig, ax = plt.subplots()
-    ax.hist(reduce(lambda a, c: a + c, trips_distinct_floors))
-    ax.set_xlabel('number of distinct floors per trip')
-    ax.set_ylabel('number of trips')
-    ax.set_title('histogram of floors visited per trip')
+    fig, axs = plt.subplots(2, 2, figsize=(16, 9))
+    ax1, ax2, ax3, ax4 = axs.flatten()
+    ax1.hist(reduce(lambda a, c: a + c, trips_distinct_floors))
+    ax1.set_xlabel('number of distinct floors per trip')
+    ax1.set_ylabel('number of trips')
+    ax1.set_title('histogram of floors visited per trip')
+
+    ax2.hist(tot_times)
+    ax2.set_title('total time for all workers to reach their floors')
+    ax2.set_ylabel('# of sims')
+    ax2.set_xlabel('time for final elevator to reach bottom')
+
+    ax3.hist(one_hundred_tenth_from_last)
+    ax3.set_title('arrival time of 110th from last')
+    ax3.set_xlabel('arrival time')
+    ax3.set_ylabel('# of sims')
+
+    print('110 from last', sum(one_hundred_tenth_from_last)/len(one_hundred_tenth_from_last))
+    print('total time   ', sum(tot_times)/len(tot_times))
+
     plt.show()
-
-
-    fig, ax = plt.subplots()
-    ax.hist(tot_times)
-    ax.set_title('total time for all workers to reach their floors')
-    ax.set_ylabel('number of sims')
-    ax.set_xlabel('time for final elevator to reach bottom')
-    plt.show()
-
 
 # from matplotlib import pyplot as plt
 #
