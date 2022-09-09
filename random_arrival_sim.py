@@ -13,7 +13,8 @@ from queue import PriorityQueue
 from operator import attrgetter as ag, itemgetter as ig
 from functools import reduce
 
-N_SIM = int(5e3)
+N_SIM = int(1e3)
+# N_SIM = int(1e2)
 
 N_ELEVATORS = 4
 N_FLOORS = 6
@@ -29,7 +30,8 @@ ELEVATOR_REOPEN_TIME = 8
 # ELEVATOR_REOPEN_PROBABILITIES = [0, 0.05]
 ELEVATOR_REOPEN_PROBABILITIES = [0.05]
 
-ARRIVAL_TIME_SPAN = [5, 10, 15, 20]
+# ARRIVAL_TIME_SPAN = [5, 10, 15]
+ARRIVAL_TIME_SPAN = [5]
 
 
 class Whappened(Enum):  # the events that will trigger a call to the strategy
@@ -130,8 +132,8 @@ def strat_3a3_max_then_small(em):
 temp_3a1 = strat_3a1_nochange()
 
 STRATS = {
-    '3a1_nochange': temp_3a1.step,
-    '3a3_max_smol': strat_3a3_max_then_small,
+    'current situation': temp_3a1.step,
+    'recommended policy': strat_3a3_max_then_small,
 }
 
 def get_trip_time_by_sent_subclusters(subclusters: List[Tuple[int, int]]):
@@ -287,14 +289,19 @@ if __name__ == '__main__':
     ax1.set_title('histogram of floors visited per trip')
     ax1.legend()
 
-    ax2.set_title('total time for all workers to reach their floors')
+    ax2.set_title(f"total time for all workers to reach their floors, span={ARRIVAL_TIME_SPAN[0]} mins")
+    ax2.set_xlabel('seconds since 9am')
     ax2.set_ylabel('# of sims')
-    ax2.set_xlabel('time for final elevator to reach bottom')
+    # ax2.set_xbound(lower=-max(ARRIVAL_TIME_SPAN))
+    ax2.axvline(x=-max(ARRIVAL_TIME_SPAN)*60, label='start')
     ax2.legend()
 
     ax3.set_title('arrival time of 110th from last')
-    ax3.set_xlabel('arrival time')
+    ax3.set_xlabel('seconds since 9am')
     ax3.set_ylabel('# of sims')
+    ax3.axvline(x=-max(ARRIVAL_TIME_SPAN)*60, label='start')
+    # ax3.set_xbound(lower=-max(ARRIVAL_TIME_SPAN))
+    # ax3.set_xbound(lower=-100)
     ax3.legend()
 
     plt.show()
